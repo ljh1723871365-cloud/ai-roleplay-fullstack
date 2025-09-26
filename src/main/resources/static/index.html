@@ -5,357 +5,468 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 角色扮演语音聊天</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 Marked.js 用于解析 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 引入 highlight.js 用于代码高亮 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
     <style>
         body {
-            font-family: 'Noto Sans SC', sans-serif;
-            background-color: #111827; /* Dark background */
-            color: #F3F4F6;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #111827;
+            color: #f3f4f6;
         }
-        .char-card {
+        .character-card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            will-change: transform;
         }
-        .char-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.1), 0 10px 10px -5px rgba(59, 130, 246, 0.08);
+        .character-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
         }
-        .talk-btn {
-            transition: all 0.2s ease;
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+        .action-button {
+            transition: all 0.2s ease-in-out;
         }
-        .talk-btn.active {
+        .action-button:hover {
+            transform: scale(1.05);
+        }
+        .action-button:active, .action-button.active {
             transform: scale(1.1);
-            background-color: #EF4444; /* Red when active */
-            box-shadow: 0 0 0 10px rgba(239, 68, 68, 0.4);
+            background-color: #ef4444;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
         }
-        #chat-log .user-bubble {
-            background-color: #3B82F6; /* Blue for user */
-            color: white;
-            align-self: flex-end;
+        .chat-bubble {
+            max-width: 80%;
+            word-wrap: break-word;
         }
-        #chat-log .ai-bubble {
-            background-color: #4B5563; /* Gray for AI */
-            color: white;
-            align-self: flex-start;
+        .chat-bubble-user {
+            background-color: #3b82f6;
         }
-        .status-dot-pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        .chat-bubble-ai {
+            background-color: #374151;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
+        /* 代码块样式 */
+        .chat-bubble-ai pre {
+            background-color: #1f2937;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            color: #d1d5db;
+            font-family: 'Courier New', Courier, monospace;
         }
-        #chat-avatar.thinking {
-            animation: thinking-pulse 1.5s ease-in-out infinite;
+        .chat-bubble-ai code {
+            font-family: 'Courier New', Courier, monospace;
         }
-        @keyframes thinking-pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
-            50% { transform: scale(1.05); box-shadow: 0 0 0 7px rgba(250, 204, 21, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #9ca3af;
+            animation: bounce 1.4s infinite ease-in-out both;
         }
-        #search-input::placeholder {
-            color: #6b7280;
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+        #attachment-preview-container {
+            transition: all 0.3s ease;
         }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">
 
-<div id="app-container" class="w-full max-w-2xl mx-auto p-4 md:p-6">
+<div id="app" class="w-full max-w-lg mx-auto bg-gray-900 rounded-2xl shadow-2xl overflow-hidden h-[90vh] flex flex-col">
 
     <!-- 角色选择界面 -->
-    <div id="character-selection" class="text-center">
-        <h1 class="text-4xl font-bold mb-2 text-white">与“他们”对话</h1>
-        <p class="text-lg text-gray-400 mb-6">选择一位角色，开始你的时空穿越之旅</p>
-
-        <div class="mb-8 px-4">
-            <input type="text" id="search-input" placeholder="搜索角色，如“哈利”或“哲学家”..." class="w-full max-w-lg mx-auto bg-gray-700 text-white border border-gray-600 rounded-full py-3 px-6 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+    <div id="character-selection-screen" class="p-6 md:p-8 flex flex-col h-full">
+        <h1 class="text-3xl font-bold text-center text-white mb-2">选择一个角色</h1>
+        <p class="text-center text-gray-400 mb-8">开始一场沉浸式对话</p>
+        <div class="grid grid-cols-2 gap-4 overflow-y-auto flex-grow">
+            <!-- 角色卡片们 -->
         </div>
-
-        <div id="character-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            <!-- 角色卡片将由 JS 动态生成 -->
-        </div>
-        <p id="no-results" class="text-gray-500 mt-8 hidden">未找到匹配的角色。</p>
     </div>
 
     <!-- 聊天界面 -->
-    <div id="chat-interface" class="hidden h-[90vh] md:h-[80vh] flex flex-col bg-gray-900 rounded-2xl shadow-2xl p-4">
-        <div class="flex items-center justify-between pb-4 border-b border-gray-700">
-            <div class="flex items-center">
-                <img id="chat-avatar" src="" alt="角色头像" class="w-12 h-12 rounded-full mr-4 transition-all duration-300">
-                <div>
-                    <h2 id="chat-name" class="text-xl font-bold text-white"></h2>
-                    <div id="chat-status" class="flex items-center text-sm text-green-400">
-                        <span class="h-2 w-2 bg-green-400 rounded-full mr-2"></span>
-                        在线
-                    </div>
-                </div>
+    <div id="chat-screen" class="hidden flex flex-col h-full">
+        <!-- 聊天头部 -->
+        <div class="flex items-center p-4 bg-gray-800 shadow-md">
+            <img id="chat-avatar" src="" alt="Avatar" class="w-12 h-12 rounded-full mr-4 border-2 border-gray-600">
+            <div>
+                <h2 id="chat-name" class="text-xl font-bold text-white"></h2>
+                <p id="chat-status" class="text-sm text-green-400">在线</p>
             </div>
-            <button id="end-chat-btn" class="text-gray-400 hover:text-white transition">结束对话</button>
+            <button id="end-chat-btn" class="ml-auto bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">结束对话</button>
         </div>
 
-        <div id="chat-log" class="flex-grow overflow-y-auto p-4 space-y-4 flex flex-col">
-            <!-- 对话气泡会在这里 -->
+        <!-- 消息区域 -->
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto">
+            <!-- 消息会在这里动态添加 -->
         </div>
 
-        <div class="pt-4 text-center">
-            <div id="status-bar" class="text-gray-400 h-6 mb-2 text-sm transition-opacity duration-300 opacity-0">...</div>
-            <button id="talk-btn" class="talk-btn w-20 h-20 bg-blue-600 rounded-full text-white flex items-center justify-center mx-auto focus:outline-none">
-                <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4zM5.5 5.5A.5.5 0 016 6v4a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zM14.5 9.5a.5.5 0 01-1 0V6a.5.5 0 011 0v3.5zM10 13a4 4 0 004-4V4a4 4 0 10-8 0v5a4 4 0 004 4z"></path></svg>
-            </button>
-            <p class="text-xs text-gray-500 mt-2">按住说话</p>
+        <!-- 输入区域 -->
+        <div class="p-4 bg-gray-800">
+            <!-- 文件预览区域 -->
+            <div id="attachment-preview-container" class="hidden relative w-full p-2 mb-2 rounded-lg bg-gray-700 flex items-center">
+                <div id="image-preview-wrapper" class="hidden w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                    <img id="image-preview" src="" class="w-full h-full object-cover">
+                </div>
+                <div id="file-info-wrapper" class="hidden flex-grow ml-2 text-sm text-gray-300 overflow-hidden">
+                    <p class="font-bold">已附加文件:</p>
+                    <p id="file-name" class="truncate"></p>
+                </div>
+                <button id="cancel-attachment-btn" class="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 leading-none flex-shrink-0">&times;</button>
+            </div>
+
+            <div class="flex items-center">
+                <!-- 文件上传按钮 -->
+                <button id="upload-file-btn" class="p-3 rounded-full hover:bg-gray-700 mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                </button>
+                <input type="file" id="file-input" accept="image/jpeg, image/png, text/plain, .md" class="hidden">
+
+                <input type="text" id="text-input" placeholder="输入消息..." class="flex-grow bg-gray-700 text-white rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                <button id="action-button" class="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg action-button flex-shrink-0 ml-2">
+                    <!-- 这个按钮的内容会动态切换 -->
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    // DOM 元素
-    const characterSelection = document.getElementById('character-selection');
-    const chatInterface = document.getElementById('chat-interface');
-    const characterGrid = document.getElementById('character-grid');
-    const searchInput = document.getElementById('search-input');
-    const noResults = document.getElementById('no-results');
-    const endChatBtn = document.getElementById('end-chat-btn');
-    const talkBtn = document.getElementById('talk-btn');
-    const chatLog = document.getElementById('chat-log');
-    const chatName = document.getElementById('chat-name');
-    const chatAvatar = document.getElementById('chat-avatar');
-    const chatStatus = document.getElementById('chat-status');
-    const statusBar = document.getElementById('status-bar');
+    document.addEventListener('DOMContentLoaded', () => {
+        const characters = [
+            {
+                id: 'gemini_assistant',
+                name: 'Gemini 助理',
+                avatar: 'https://placehold.co/128x128/7e22ce/FFFFFF?text=GA',
+                prompt: "你是一个全能的 AI 助理，名为 Gemini。你知识渊博，乐于助人，能够回答各种问题、生成代码、分析图像、总结文本。你的回答应该专业、清晰且有条理。",
+            },
+            {
+                id: 'harry_potter',
+                name: '哈利·波特',
+                avatar: 'https://placehold.co/128x128/7f1d1d/FFFFFF?text=HP',
+                prompt: "你现在是哈利·波特，一个勇敢、有时有点冲动的年轻巫师。你的知识仅限于《哈利·波特》系列小说第7部结尾之前。请用哈利的口吻和身份来回答问题。",
+            },
+            {
+                id: 'socrates',
+                name: '苏格拉底',
+                avatar: 'https://placehold.co/128x128/d1d5db/111827?text=ΣΩ',
+                prompt: "你现在是古希腊哲学家苏格拉底。你对一切都抱有好奇，并善于通过连续提问（苏格拉底诘问法）来引导对方思考，从而揭示问题的本质。你的口吻应该是谦逊而富有思辨性的。",
+            },
+            {
+                id: 'einstein',
+                name: '阿尔伯特·爱因斯坦',
+                avatar: 'https://placehold.co/128x128/f0f9ff/1e3a8a?text=E%3Dmc%C2%B2',
+                prompt: "你现在是阿尔伯特·爱因斯坦。你是一位充满想象力和好奇心的物理学家。你的语言既严谨又富有哲理，喜欢用思想实验来解释复杂的概念。你对宇宙的奥秘充满敬畏。",
+            },
+            {
+                id: 'sherlock_holmes',
+                name: '夏洛克·福尔摩斯',
+                avatar: 'https://placehold.co/128x128/334155/e2e8f0?text=SH',
+                prompt: "你现在是夏洛克·福尔摩斯，世界闻名的咨询侦探。你的思维敏锐，观察力惊人，逻辑推理能力超群。你的语言精准、冷静且不带感情，常常一针见血地指出问题的核心。你对愚蠢和低效感到不耐烦。",
+            },
+            {
+                id: 'cleopatra',
+                name: '克娄巴特拉',
+                avatar: 'https://placehold.co/128x128/fef2f2/854d0e?text=CLEO',
+                prompt: "你现在是克娄巴特拉七世，古埃及托勒密王朝的最后一任法老。你是一位极富魅力、智慧和政治手腕的女王。你的言谈举止高贵、自信且具有说服力，你精通多国语言，对政治、权力和文化有深刻的见解。",
+            },
+        ];
 
-    // API
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
-    const synth = window.speechSynthesis;
+        const characterScreen = document.getElementById('character-selection-screen');
+        const chatScreen = document.getElementById('chat-screen');
+        const characterGrid = characterScreen.querySelector('.grid');
+        const textInput = document.getElementById('text-input');
+        const actionButton = document.getElementById('action-button');
 
-    // 状态变量
-    let currentCharacter = null;
-    let conversationHistory = [];
-    let isListening = false;
-    let isSpeaking = false;
+        const micIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>`;
+        const sendIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
 
-    // 角色数据
-    const characters = {
-        harry: {
-            id: 'harry',
-            name: "哈利·波特",
-            desc: "来自霍格沃茨的巫师",
-            tags: ['harry', 'potter', '哈利波特', '巫师', '魔法', 'wizard', 'magic'],
-            avatar: "https://placehold.co/150x150/1F2937/FFFFFF?text=HP",
-            systemPrompt: `你是哈利·波特，一个来自霍格沃茨魔法学校的年轻巫师。你的性格勇敢、忠诚、有时有点鲁莽。你的声音年轻而坚定。你熟悉魔法世界的一切。你具备以下特殊技能：1. 故事叙述：如果用户让你“讲个故事”或提及你的冒险，请以第一人称生动地讲述一件你在霍格沃茨的经历。2. 知识问答：如果用户让你“考考我”，请提出一个关于咒语、神奇动物或黑魔法防御术的问题。3. 情景推演：如果用户提出“如果...会怎样”的假设，请结合你的性格富有想象力地进行推演。请用中文回答，保持你的角色身份。`
-        },
-        socrates: {
-            id: 'socrates',
-            name: "苏格拉底",
-            desc: "古希腊的哲学家",
-            tags: ['socrates', '苏格拉底', '哲学家', '哲学', '希腊', 'philosopher'],
-            avatar: "https://placehold.co/150x150/1F2937/FFFFFF?text=Σ",
-            systemPrompt: `你是苏格拉底，古希腊雅典哲学家。你的核心思想是“认识你自己”，你习惯于通过诘问和反思来引导他人思考。你的语气沉稳、充满智慧但又很谦逊。你具备以下特殊技能：1. 故事叙述：如果用户让你“讲个故事”，请讲述一个你在雅典市场与人辩论的逸事。2. 知识问答：如果用户让你“考考我”，请提出一个关于美德、正义、知识或伦理的深刻问题，并引导用户探索。3. 情景推演：如果用户提出“如果...会怎样”的假设，请用你的哲学思辨方法来分析和推演。请用中文回答，保持你的角色身份。`
-        },
-        einstein: {
-            id: 'einstein',
-            name: "爱因斯坦",
-            desc: "伟大的物理学家",
-            tags: ['einstein', '爱因斯坦', '物理', '科学家', '相对论', 'scientist'],
-            avatar: "https://placehold.co/150x150/1F2937/FFFFFF?text=E%3Dmc²",
-            systemPrompt: `你是阿尔伯特·爱因斯坦，一位德裔物理学家。你提出了相对论。你的性格充满好奇心、富有想象力，有时带点幽默感。你的声音温和而睿智。你具备以下特殊技能：1. 故事叙述：如果用户让你“讲个故事”，请讲述你构思相对论时的思想实验。2. 知识问答：如果用户让你“考考我”，请提出一个关于相对论、宇宙学的思想实验或简化问题。3. 情景推演：如果用户提出“如果...会怎样”的假设，请想象并描述。请用中文回答，保持你的角色身份。`
-        },
-        sherlock: {
-            id: 'sherlock',
-            name: "福尔摩斯",
-            desc: "传奇的咨询侦探",
-            tags: ['sherlock', 'holmes', '福尔摩斯', '侦探', '推理', 'detective'],
-            avatar: "https://placehold.co/150x150/1F2937/FFFFFF?text=SH",
-            systemPrompt: `你是夏洛克·福尔摩斯，来自伦敦贝克街221B的咨询侦探。你极其聪明、观察力敏锐、逻辑性强。你的言辞精准而富有分析性，偶尔会称呼用户为“我亲爱的华生”。你具备以下特殊技能：1. 故事叙述：如果用户让你“讲个故事”，请讲述一件你经手的著名案件的片段。2. 知识问答：如果用户让你“考考我”，请提出一个微型谜案或一组观察线索，要求用户做出推断。3. 情景推演：如果用户提出“如果...会怎样”的假设，请用你严谨的逻辑进行推演。请用中文回答，保持你的角色身份。`
-        },
-        cleopatra: {
-            id: 'cleopatra',
-            name: "克利奥帕特拉",
-            desc: "埃及的末代女王",
-            tags: ['cleopatra', '克利奥帕特拉', '埃及', '女王', '艳后', 'egypt', 'queen'],
-            avatar: "https://placehold.co/150x150/1F2937/FFFFFF?text=Cleo",
-            systemPrompt: `你是克利奥帕特拉七世，古埃及托勒密王朝的最后一位统治者。你聪慧、富有魅力且精通政治。你的言谈举止尽显女王的权威与优雅。你具备以下特殊技能：1. 故事叙述：如果用户让你“讲个故事”，请讲述一件关于你政治生涯的重大事件，例如你与凯撒的会面。2. 知识问答：如果用户让你“考考我”，请提出一个关于古埃及历史、神话或尼罗河的问题。3. 情景推演：如果用户提出“如果...会怎样”的假设，请结合你的雄心和智慧进行构想。请用中文回答，保持你的角色身份。`
+        let currentCharacter = null;
+        let conversationHistory = [];
+        let recognition;
+        let isRecording = false;
+        let attachedFile = { type: null, content: null, mimeType: null, name: null, displaySrc: null };
+
+        // Initialize Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'zh-CN';
+            recognition.interimResults = false;
+            recognition.onresult = (event) => handleUserMessage(event.results[0][0].transcript, 'voice');
+            recognition.onerror = (event) => { console.error('语音识别错误:', event.error); setActionButtonState('idle'); };
+            recognition.onend = () => { if (isRecording) { recognition.start(); } else { setActionButtonState('idle'); } };
+        } else {
+            console.warn('此浏览器不支持语音识别。');
         }
-    };
 
-    function renderCharacterCards(filter = '') {
-        characterGrid.innerHTML = '';
-        let hasResults = false;
-        Object.values(characters).forEach(char => {
-            const searchCorpus = `${char.name} ${char.desc} ${char.tags.join(' ')}`.toLowerCase();
-            if (filter === '' || searchCorpus.includes(filter.toLowerCase())) {
-                hasResults = true;
-                const card = document.createElement('div');
-                card.className = 'char-card bg-gray-800 rounded-2xl p-6 cursor-pointer border border-gray-700';
-                card.dataset.charId = char.id;
-                card.innerHTML = `
-                        <img src="${char.avatar}" alt="${char.name}" class="w-24 h-24 md:w-32 md:h-32 rounded-full mx-auto mb-4 border-4 border-gray-600">
-                        <h3 class="text-xl font-bold text-white">${char.name}</h3>
-                        <p class="text-gray-400 text-sm">${char.desc}</p>
-                    `;
-                card.addEventListener('click', () => selectCharacter(char.id));
-                characterGrid.appendChild(card);
-            }
+        // Dynamically create character cards
+        characters.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'character-card bg-gray-800 rounded-lg p-4 text-center cursor-pointer flex flex-col items-center';
+            card.innerHTML = `<img src="${char.avatar}" alt="${char.name}" class="w-24 h-24 rounded-full mb-4 border-4 border-gray-700"><h3 class="text-lg font-semibold text-white">${char.name}</h3>`;
+            card.onclick = () => startChat(char);
+            characterGrid.appendChild(card);
         });
-        noResults.style.display = hasResults ? 'none' : 'block';
-    }
 
-    function initialize() {
-        if (!recognition) {
-            alert("抱歉，您的浏览器不支持语音识别功能。请尝试使用 Chrome 浏览器。");
-            return;
+        function updateActionButton() {
+            if (textInput.value.trim() !== '') {
+                actionButton.innerHTML = sendIconSVG;
+            } else {
+                actionButton.innerHTML = micIconSVG;
+            }
         }
-        renderCharacterCards();
 
-        recognition.continuous = false;
-        recognition.lang = 'zh-CN';
-        recognition.interimResults = false;
-
-        recognition.onresult = handleRecognitionResult;
-        recognition.onerror = handleRecognitionError;
-        recognition.onstart = () => setStatus("正在聆听...");
-        recognition.onend = () => { if(isListening) stopListening(); };
-
-        searchInput.addEventListener('input', (e) => renderCharacterCards(e.target.value));
-        endChatBtn.addEventListener('click', endChat);
-        talkBtn.addEventListener('mousedown', startListening);
-        talkBtn.addEventListener('mouseup', stopListening);
-        talkBtn.addEventListener('mouseleave', () => { if (isListening) stopListening(); });
-    }
-
-    function setStatus(text) {
-        statusBar.textContent = text;
-        statusBar.style.opacity = text ? '1' : '0';
-    }
-
-    function addMessageToLog(sender, message) {
-        const bubble = document.createElement('div');
-        bubble.className = `p-3 rounded-xl max-w-lg break-words ${sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
-        bubble.textContent = message;
-        chatLog.appendChild(bubble);
-        chatLog.scrollTop = chatLog.scrollHeight;
-    }
-
-    function selectCharacter(charId) {
-        currentCharacter = characters[charId];
-        conversationHistory = [];
-
-        chatName.textContent = currentCharacter.name;
-        chatAvatar.src = currentCharacter.avatar;
-
-        characterSelection.classList.add('hidden');
-        chatInterface.classList.remove('hidden');
-
-        const welcomeMessage = `你好，我是${currentCharacter.name}。你想聊点什么？`;
-        addMessageToLog('ai', welcomeMessage);
-        speak(welcomeMessage);
-    }
-
-    function endChat() {
-        synth.cancel();
-        if (isListening) recognition.stop();
-        isListening = false;
-        isSpeaking = false;
-        chatLog.innerHTML = '';
-        chatInterface.classList.add('hidden');
-        characterSelection.classList.remove('hidden');
-        setStatus("");
-    }
-
-    function startListening() {
-        if (isSpeaking || isListening) return;
-        isListening = true;
-        talkBtn.classList.add('active');
-        try { recognition.start(); }
-        catch(e) {
-            console.error("Recognition start error:", e);
-            stopListening();
+        function startChat(character) {
+            currentCharacter = character;
+            conversationHistory = [];
+            characterScreen.classList.add('hidden');
+            chatScreen.classList.remove('hidden');
+            document.getElementById('chat-avatar').src = character.avatar;
+            document.getElementById('chat-name').textContent = character.name;
+            document.getElementById('chat-messages').innerHTML = '';
+            textInput.value = '';
+            updateActionButton();
+            const welcomeMessage = "你好！我是" + character.name + "。有什么可以和你聊聊的吗？";
+            addMessageToChat('ai', welcomeMessage);
+            speak(welcomeMessage);
         }
-    }
 
-    function stopListening() {
-        if (!isListening) return;
-        isListening = false;
-        talkBtn.classList.remove('active');
-        recognition.stop();
-        setStatus("");
-    }
-
-    function handleRecognitionResult(event) {
-        const transcript = event.results[0][0].transcript;
-        if (transcript.trim()) {
-            addMessageToLog('user', transcript);
-            getAIResponse(transcript);
+        function endChat() {
+            currentCharacter = null;
+            isRecording = false;
+            if(recognition) recognition.stop();
+            window.speechSynthesis.cancel();
+            chatScreen.classList.add('hidden');
+            characterScreen.classList.remove('hidden');
+            resetAttachment();
         }
-    }
 
-    function handleRecognitionError(event) {
-        console.error('Speech recognition error', event.error);
-        setStatus("抱歉，识别出错了");
-    }
+        document.getElementById('end-chat-btn').onclick = endChat;
 
-    async function getAIResponse(userMessage) {
-        if (!currentCharacter) return;
+        async function handleUserMessage(text, inputType = 'text') {
+            const messageText = text.trim();
+            if (!messageText && !attachedFile.content) return;
 
-        setStatus(`${currentCharacter.name} 正在思考...`);
-        chatAvatar.classList.add('thinking');
+            let userMessage = messageText;
+            let userQuestionForModel = messageText;
 
-        conversationHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+            // If a text file is attached, construct a special prompt
+            if (attachedFile.type === 'text') {
+                userQuestionForModel = `基于以下文档内容:\n\n---\n${attachedFile.content}\n---\n\n我的问题是：${messageText}`;
+            }
 
-        try {
-            const apiKey = "AIzaSyBc90TzaKQG68B46vweMbvkVivOKi4-avA"; // API key is auto-injected.
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            addMessageToChat('user', userMessage, attachedFile.displaySrc);
+            conversationHistory.push({ role: 'user', parts: [{ text: userQuestionForModel }] });
+            addTypingIndicator();
 
+            try {
+                const aiResponseText = await getAIResponse();
+                removeTypingIndicator();
+                conversationHistory.push({ role: 'model', parts: [{ text: aiResponseText }] });
+                addMessageToChat('ai', aiResponseText);
+                // Only read the reply aloud for voice input
+                if (inputType === 'voice') {
+                    speak(aiResponseText);
+                }
+            } catch (error) {
+                console.error('获取 AI 回复失败:', error);
+                removeTypingIndicator();
+                addMessageToChat('ai', '抱歉，我好像断线了，请稍后再试。');
+            } finally {
+                resetAttachment();
+            }
+        }
+
+        async function getAIResponse() {
             const payload = {
-                contents: conversationHistory,
-                systemInstruction: { parts: [{ text: currentCharacter.systemPrompt }] }
+                systemPrompt: currentCharacter.prompt,
+                conversationHistory: conversationHistory,
+                base64Image: attachedFile.type === 'image' ? attachedFile.content : null,
+                imageMimeType: attachedFile.type === 'image' ? attachedFile.mimeType : null,
             };
 
-            const response = await fetch(apiUrl, {
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error(`API request failed: ${response.status}`);
-
-            const result = await response.json();
-            const aiText = result.candidates[0].content.parts[0].text;
-
-            conversationHistory.push({ role: 'model', parts: [{ text: aiText }] });
-            addMessageToLog('ai', aiText);
-            speak(aiText);
-
-        } catch (error) {
-            console.error("Error fetching AI response:", error);
-            const errorMessage = "抱歉，我好像断线了，请稍后再试。";
-            addMessageToLog('ai', errorMessage);
-            speak(errorMessage);
-        } finally {
-            setStatus("");
-            chatAvatar.classList.remove('thinking');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `API request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.aiResponse;
         }
-    }
 
-    function speak(text) {
-        if (isSpeaking) synth.cancel();
+        function addMessageToChat(sender, text, attachmentSrc = null) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `flex mb-4 ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.onstart = () => {
-            isSpeaking = true;
-            setStatus(`${currentCharacter.name} 正在说话...`);
-            chatStatus.innerHTML = `<span class="h-2 w-2 bg-yellow-400 rounded-full mr-2 status-dot-pulse"></span> 正在输入...`;
+            let contentHTML = '';
+            if(attachmentSrc && sender === 'user') { // Only show image when sent by user
+                contentHTML += `<img src="${attachmentSrc}" class="max-w-xs rounded-lg mb-2">`;
+            }
+
+            // Use marked.js to parse markdown
+            const rawHtml = marked.parse(text);
+            const bubbleClass = sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai';
+            contentHTML += `<div class="chat-bubble ${bubbleClass} rounded-lg p-3 text-white">${rawHtml}</div>`;
+
+            messageElement.innerHTML = `<div class="flex flex-col items-${sender === 'user' ? 'end' : 'start'}">${contentHTML}</div>`;
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Highlight new code blocks
+            messageElement.querySelectorAll('pre code').forEach(hljs.highlightElement);
+        }
+
+        function addTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.id = 'typing-indicator';
+            indicator.className = 'flex items-center justify-start mb-4';
+            indicator.innerHTML = `
+                    <div class="chat-bubble chat-bubble-ai rounded-lg p-4">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                `;
+            document.getElementById('chat-messages').appendChild(indicator);
+        }
+
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        function speak(text) {
+            window.speechSynthesis.cancel();
+            const cleanText = text.replace(/```[\s\S]*?```/g, '（代码部分）').replace(/[`*#_~]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'zh-CN';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function setActionButtonState(state) {
+            const status = document.getElementById('chat-status');
+            actionButton.classList.remove('active');
+            switch (state) {
+                case 'recording': status.textContent = '正在聆听...'; actionButton.classList.add('active'); break;
+                case 'processing': status.textContent = '思考中...'; break;
+                default: status.textContent = '在线'; break;
+            }
+        }
+
+        // --- Event Listeners ---
+        textInput.addEventListener('input', updateActionButton);
+
+        actionButton.addEventListener('click', () => {
+            if (textInput.value.trim() !== '') {
+                handleUserMessage(textInput.value, 'text');
+                textInput.value = '';
+                updateActionButton();
+            }
+        });
+
+        actionButton.addEventListener('mousedown', () => {
+            if (textInput.value.trim() === '' && recognition && !isRecording) {
+                isRecording = true;
+                recognition.start();
+                setActionButtonState('recording');
+            }
+        });
+
+        actionButton.addEventListener('mouseup', () => {
+            if (isRecording && recognition) {
+                isRecording = false;
+                recognition.stop();
+                setActionButtonState('processing');
+            }
+        });
+
+        textInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent new line
+                actionButton.click();
+            }
+        });
+
+        // File handling
+        const uploadFileBtn = document.getElementById('upload-file-btn');
+        const fileInput = document.getElementById('file-input');
+        const attachmentPreviewContainer = document.getElementById('attachment-preview-container');
+        const imagePreviewWrapper = document.getElementById('image-preview-wrapper');
+        const imagePreview = document.getElementById('image-preview');
+        const fileInfoWrapper = document.getElementById('file-info-wrapper');
+        const fileNameEl = document.getElementById('file-name');
+        const cancelAttachmentBtn = document.getElementById('cancel-attachment-btn');
+
+        uploadFileBtn.onclick = () => fileInput.click();
+        cancelAttachmentBtn.onclick = resetAttachment;
+
+        fileInput.onchange = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const isImage = file.type.startsWith('image/');
+            const isText = file.type === 'text/plain' || file.name.endsWith('.md');
+
+            if (isImage) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    attachedFile = {
+                        type: 'image',
+                        content: e.target.result.split(',')[1],
+                        mimeType: file.type,
+                        name: file.name,
+                        displaySrc: e.target.result
+                    };
+                    imagePreview.src = e.target.result;
+                    imagePreviewWrapper.classList.remove('hidden');
+                    fileInfoWrapper.classList.add('hidden');
+                    attachmentPreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else if (isText) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    attachedFile = {
+                        type: 'text',
+                        content: e.target.result,
+                        mimeType: file.type,
+                        name: file.name,
+                        displaySrc: null
+                    };
+                    fileNameEl.textContent = file.name;
+                    imagePreviewWrapper.classList.add('hidden');
+                    fileInfoWrapper.classList.remove('hidden');
+                    attachmentPreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsText(file);
+            } else {
+                alert('不支持的文件类型。请上传图片 (.jpg, .png) 或文本文档 (.txt, .md)。');
+            }
+            event.target.value = '';
         };
-        utterance.onend = () => {
-            isSpeaking = false;
-            setStatus("");
-            chatStatus.innerHTML = `<span class="h-2 w-2 bg-green-400 rounded-full mr-2"></span> 在线`;
-        };
-        synth.speak(utterance);
-    }
 
-    initialize();
+        function resetAttachment(){
+            attachedFile = { type: null, content: null, mimeType: null, name: null, displaySrc: null };
+            attachmentPreviewContainer.classList.add('hidden');
+        }
+
+        // Set initial button state on load
+        updateActionButton();
+    });
 </script>
 </body>
 </html>
